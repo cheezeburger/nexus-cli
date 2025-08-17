@@ -10,12 +10,20 @@ ORANGE='\033[1;33m'
 RED='\033[1;31m'
 NC='\033[0m'  # No Color
 
+# Get the latest release tag
+LATEST_TAG=$(curl -s https://api.github.com/repos/cheezeburger/nexus-cli/releases/latest | grep '"tag_name":' | head -n 1 | cut -d '"' -f 4)
+
+# Fallback to specific tag if API fails
+if [ -z "$LATEST_TAG" ]; then
+    LATEST_TAG="v0.10.8_cust"
+fi
+
 # Release-specific download URLs for custom build
-LINUX_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_cust/nexus-network-linux-x86_64"
-LINUX_ARM64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_cust/nexus-network-linux-arm64"
-MACOS_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_cust/nexus-network-macos-x86_64"
-MACOS_ARM64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_cust/nexus-network-macos-arm64"
-WINDOWS_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_cust/nexus-network-windows-x86_64.exe"
+LINUX_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/$LATEST_TAG/nexus-network-linux-x86_64"
+LINUX_ARM64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/$LATEST_TAG/nexus-network-linux-arm64"
+MACOS_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/$LATEST_TAG/nexus-network-macos-x86_64"
+MACOS_ARM64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/$LATEST_TAG/nexus-network-macos-arm64"
+WINDOWS_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/$LATEST_TAG/nexus-network-windows-x86_64.exe"
 
 # Ensure the $NEXUS_HOME and $BIN_DIR directories exist.
 [ -d "$NEXUS_HOME" ] || mkdir -p "$NEXUS_HOME"
