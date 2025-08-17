@@ -1,101 +1,196 @@
 #!/bin/sh
-set -e
 
-# Configuration
-REPO="cheezeburger/nexus-cli"
-BINARY_NAME="nexus-network"
-INSTALL_DIR="/usr/local/bin"
+# -----------------------------------------------------------------------------
+# 1) Define environment variables and colors for terminal output.
+# -----------------------------------------------------------------------------
+NEXUS_HOME="$HOME/.nexus"
+BIN_DIR="$NEXUS_HOME/bin"
+GREEN='\033[1;32m'
+ORANGE='\033[1;33m'
+RED='\033[1;31m'
+NC='\033[0m'  # No Color
 
-# Detect OS and architecture
-detect_platform() {
-    os=$(uname -s | tr 'A-Z' 'a-z')
-    arch=$(uname -m)
-    
-    case $os in
-        darwin) os="macos" ;;
-        linux) os="linux" ;;
-        *) 
-            echo "Error: Unsupported OS: $os"
-            exit 1
-            ;;
+# Release-specific download URLs for custom build
+LINUX_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-linux-x86_64"
+LINUX_ARM64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-linux-arm64"
+MACOS_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-macos-x86_64"
+MACOS_ARM64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-macos-arm64"
+WINDOWS_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-windows-x86_64.exe"
+
+# Ensure the $NEXUS_HOME and $BIN_DIR directories exist.
+[ -d "$NEXUS_HOME" ] || mkdir -p "$NEXUS_HOME"
+[ -d "$BIN_DIR" ] || mkdir -p "$BIN_DIR"
+
+# -----------------------------------------------------------------------------
+# 2) Display a message about custom build
+# -----------------------------------------------------------------------------
+if [ -z "$NONINTERACTIVE" ]; then
+    echo ""
+    echo "${GREEN}Installing custom Nexus CLI build with enhanced features!${NC}"
+    echo ""
+fi
+
+# -----------------------------------------------------------------------------
+# 3) Prompt the user to agree to the Nexus Beta Terms of Use if we're in an
+#    interactive mode (i.e., NONINTERACTIVE is not set) and no config.json file exists.
+#    We explicitly read from /dev/tty to ensure user input is requested from the
+#    terminal rather than the script's standard input.
+# -----------------------------------------------------------------------------
+while [ -z "$NONINTERACTIVE" ] && [ ! -f "$NEXUS_HOME/config.json" ]; do
+    read -p "Do you agree to the Nexus Beta Terms of Use (https://nexus.xyz/terms-of-use)? (Y/n) " yn </dev/tty
+    echo ""
+
+    case $yn in
+        [Nn]* )
+            echo ""
+            exit;;
+        [Yy]* )
+            echo ""
+            break;;
+        "" )
+            echo ""
+            break;;
+        * )
+            echo "Please answer yes or no."
+            echo "";;
     esac
-    
-    case $arch in
-        x86_64) arch="x86_64" ;;
-        arm64|aarch64) arch="arm64" ;;
-        *) 
-            echo "Error: Unsupported architecture: $arch"
-            exit 1
-            ;;
-    esac
-    
-    echo "${os}-${arch}"
-}
+done
 
-# Get latest release info
-get_latest_release() {
-    curl -s "https://api.github.com/repos/$REPO/releases/latest" | \
-        grep '"tag_name":' | \
-        head -n 1 | \
-        cut -d '"' -f 4
-}
-
-# Download and install
-install_nexus_cli() {
-    platform=$(detect_platform)
-    version=$(get_latest_release)
-    
-    if [ -z "$version" ]; then
-        echo "Error: Could not fetch latest release"
+# -----------------------------------------------------------------------------
+# 4) Determine the platform and architecture and select the appropriate download URL
+# -----------------------------------------------------------------------------
+case "$(uname -s)" in
+    Linux*)
+        PLATFORM="linux"
+        case "$(uname -m)" in
+            x86_64)
+                ARCH="x86_64"
+                DOWNLOAD_URL="$LINUX_X86_64_URL"
+                ;;
+            aarch64|arm64)
+                ARCH="arm64"
+                DOWNLOAD_URL="$LINUX_ARM64_URL"
+                ;;
+            *)
+                echo "${RED}Unsupported architecture: $(uname -m)${NC}"
+                echo "Please build from source:"
+                echo "  git clone https://github.com/cheezeburger/nexus-cli.git"
+                echo "  cd nexus-cli/clients/cli"
+                echo "  cargo build --release"
+                exit 1
+                ;;
+        esac
+        ;;
+    Darwin*)
+        PLATFORM="macos"
+        case "$(uname -m)" in
+            x86_64)
+                ARCH="x86_64"
+                DOWNLOAD_URL="$MACOS_X86_64_URL"
+                echo "${ORANGE}Note: You are running on an Intel Mac.${NC}"
+                ;;
+            arm64)
+                ARCH="arm64"
+                DOWNLOAD_URL="$MACOS_ARM64_URL"
+                echo "${ORANGE}Note: You are running on an Apple Silicon Mac (M1/M2/M3).${NC}"
+                ;;
+            *)
+                echo "${RED}Unsupported architecture: $(uname -m)${NC}"
+                echo "Please build from source:"
+                echo "  git clone https://github.com/cheezeburger/nexus-cli.git"
+                echo "  cd nexus-cli/clients/cli"
+                echo "  cargo build --release"
+                exit 1
+                ;;
+        esac
+        ;;
+    MINGW*|MSYS*|CYGWIN*)
+        PLATFORM="windows"
+        case "$(uname -m)" in
+            x86_64)
+                ARCH="x86_64"
+                DOWNLOAD_URL="$WINDOWS_X86_64_URL"
+                ;;
+            *)
+                echo "${RED}Unsupported architecture: $(uname -m)${NC}"
+                echo "Please build from source:"
+                echo "  git clone https://github.com/cheezeburger/nexus-cli.git"
+                echo "  cd nexus-cli/clients/cli"
+                echo "  cargo build --release"
+                exit 1
+                ;;
+        esac
+        ;;
+    *)
+        echo "${RED}Unsupported platform: $(uname -s)${NC}"
+        echo "Please build from source:"
+        echo "  git clone https://github.com/cheezeburger/nexus-cli.git"
+        echo "  cd nexus-cli/clients/cli"
+        echo "  cargo build --release"
         exit 1
-    fi
-    
-    echo "Installing Nexus CLI $version for $platform..."
-    
-    # Try different possible binary names
-    binary_name="${BINARY_NAME}-${platform}"
-    download_url="https://github.com/$REPO/releases/download/$version/$binary_name"
-    temp_file="/tmp/nexus-cli"
-    
-    echo "Downloading from: $download_url"
-    
-    if ! curl -L "$download_url" -o "$temp_file" 2>/dev/null; then
-        # Try without platform suffix
-        download_url="https://github.com/$REPO/releases/download/$version/$BINARY_NAME"
-        echo "Trying alternative URL: $download_url"
-        
-        if ! curl -L "$download_url" -o "$temp_file" 2>/dev/null; then
-            echo "Error: Could not download binary"
-            echo "Tried:"
-            echo "  - https://github.com/$REPO/releases/download/$version/${BINARY_NAME}-${platform}"
-            echo "  - https://github.com/$REPO/releases/download/$version/$BINARY_NAME"
-            exit 1
-        fi
-    fi
-    
-    # Make executable
-    chmod +x "$temp_file"
-    
-    # Install to system path with the correct name
-    if [ -w "$INSTALL_DIR" ]; then
-        mv "$temp_file" "$INSTALL_DIR/nexus-cli"
-    else
-        echo "Installing to $INSTALL_DIR requires sudo..."
-        sudo mv "$temp_file" "$INSTALL_DIR/nexus-cli"
-    fi
-    
-    echo "✓ Nexus CLI installed successfully!"
-    echo "✓ You can now run: nexus-cli --help"
-}
+        ;;
+esac
 
-# Main execution
-main() {
-    echo "Nexus CLI Installer"
-    echo "Repository: $REPO"
-    echo
-    
-    install_nexus_cli
-}
+# -----------------------------------------------------------------------------
+# 5) Validate download URL and download the binary
+# -----------------------------------------------------------------------------
+if [ -z "$DOWNLOAD_URL" ] || echo "$DOWNLOAD_URL" | grep -q "__.*_URL__"; then
+    echo "${RED}No download URL available for $PLATFORM-$ARCH${NC}"
+    echo "This might indicate that no release exists for your platform."
+    echo "Please build from source:"
+    echo "  git clone https://github.com/cheezeburger/nexus-cli.git"
+    echo "  cd nexus-cli/clients/cli"
+    echo "  cargo build --release"
+    exit 1
+fi
 
-# Run the installer
-main "$@"
+echo "Downloading custom release for ${GREEN}$PLATFORM-$ARCH${NC}..."
+echo "Downloading from: ${GREEN}$DOWNLOAD_URL${NC}"
+
+if ! curl -L -o "$BIN_DIR/nexus-network" "$DOWNLOAD_URL"; then
+    echo "${RED}Failed to download binary from $DOWNLOAD_URL${NC}"
+    echo "Please try again or build from source:"
+    echo "  git clone https://github.com/cheezeburger/nexus-cli.git"
+    echo "  cd nexus-cli/clients/cli"
+    echo "  cargo build --release"
+    exit 1
+fi
+
+chmod +x "$BIN_DIR/nexus-network"
+ln -s "$BIN_DIR/nexus-network" "$BIN_DIR/nexus-cli"
+chmod +x "$BIN_DIR/nexus-cli"
+
+# -----------------------------------------------------------------------------
+# 6) Add $BIN_DIR to PATH if not already present
+# -----------------------------------------------------------------------------
+case "$SHELL" in
+    */bash)
+        PROFILE_FILE="$HOME/.bashrc"
+        ;;
+    */zsh)
+        PROFILE_FILE="$HOME/.zshrc"
+        ;;
+    *)
+        PROFILE_FILE="$HOME/.profile"
+        ;;
+esac
+
+# Only append if not already in PATH
+if ! echo "$PATH" | grep -q "$BIN_DIR"; then
+    if ! grep -qs "$BIN_DIR" "$PROFILE_FILE"; then
+        echo "" >> "$PROFILE_FILE"
+        echo "# Add Nexus CLI to PATH" >> "$PROFILE_FILE"
+        echo "export PATH=\"$BIN_DIR:\$PATH\"" >> "$PROFILE_FILE"
+        echo "${GREEN}Updated PATH in $PROFILE_FILE${NC}"
+    fi
+fi
+
+echo ""
+echo "${GREEN}Custom Nexus CLI installation complete!${NC}"
+echo "Restart your terminal or run the following command to update your PATH:"
+echo "  source $PROFILE_FILE"
+echo ""
+echo "${ORANGE}To get your node ID, visit: https://app.nexus.xyz/nodes${NC}"
+echo ""
+echo "Register your user to begin linked proving with the Nexus CLI by: nexus-cli register-user --wallet-address <WALLET_ADDRESS>"
+echo "Or follow the guide at https://docs.nexus.xyz/layer-1/testnet/cli-node"
