@@ -1,125 +1,196 @@
-//! Session setup and initialization
+#!/bin/sh
 
-use crate::config::Config;
-use crate::environment::Environment;
-use crate::events::Event;
-use crate::orchestrator::OrchestratorClient;
-use crate::runtime::start_authenticated_worker;
-use ed25519_dalek::SigningKey;
-use std::error::Error;
-use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
-use tokio::sync::{broadcast, mpsc};
-use tokio::task::JoinHandle;
+# -----------------------------------------------------------------------------
+# 1) Define environment variables and colors for terminal output.
+# -----------------------------------------------------------------------------
+NEXUS_HOME="$HOME/.nexus"
+BIN_DIR="$NEXUS_HOME/bin"
+GREEN='\033[1;32m'
+ORANGE='\033[1;33m'
+RED='\033[1;31m'
+NC='\033[0m'  # No Color
 
-/// Session data for both TUI and headless modes
-#[derive(Debug)]
-pub struct SessionData {
-    /// Event receiver for worker events
-    pub event_receiver: mpsc::Receiver<Event>,
-    /// Join handles for worker tasks
-    pub join_handles: Vec<JoinHandle<()>>,
-    /// Shutdown sender to stop all workers
-    pub shutdown_sender: broadcast::Sender<()>,
-    /// Shutdown sender for max tasks completion
-    pub max_tasks_shutdown_sender: broadcast::Sender<()>,
-    /// Node ID
-    pub node_id: u64,
-    /// Orchestrator client
-    pub orchestrator: OrchestratorClient,
-    /// Number of workers (for display purposes)
-    pub num_workers: usize,
-}
+# Release-specific download URLs for custom build
+LINUX_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-linux-x86_64"
+LINUX_ARM64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-linux-arm64"
+MACOS_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-macos-x86_64"
+MACOS_ARM64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-macos-arm64"
+WINDOWS_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-windows-x86_64.exe"
 
-/// Warn the user if their available memory seems insufficient for the task(s) at hand
-pub fn warn_memory_configuration(max_threads: Option<u32>) {
-    if let Some(threads) = max_threads {
-        let current_pid = Pid::from(std::process::id() as usize);
+# Ensure the $NEXUS_HOME and $BIN_DIR directories exist.
+[ -d "$NEXUS_HOME" ] || mkdir -p "$NEXUS_HOME"
+[ -d "$BIN_DIR" ] || mkdir -p "$BIN_DIR"
 
-        let mut sysinfo = System::new();
-        sysinfo.refresh_processes_specifics(
-            ProcessesToUpdate::Some(&[current_pid]),
-            true, // Refresh exact processes
-            ProcessRefreshKind::nothing().with_memory(),
-        );
+# -----------------------------------------------------------------------------
+# 2) Display a message about custom build
+# -----------------------------------------------------------------------------
+if [ -z "$NONINTERACTIVE" ]; then
+    echo ""
+    echo "${GREEN}Installing custom Nexus CLI build with enhanced features!${NC}"
+    echo ""
+fi
 
-        if let Some(process) = sysinfo.process(current_pid) {
-            let ram_total = process.memory();
-            if threads as u64 * crate::consts::cli_consts::PROJECTED_MEMORY_REQUIREMENT >= ram_total
-            {
-                crate::print_cmd_warn!(
-                    "OOM warning",
-                    "Projected memory usage across {} requested threads exceeds memory currently available to process. In the event that proving fails due to an out-of-memory error, please restart the Nexus CLI with a smaller value supplied to `--max-threads`.",
-                    threads
-                );
-                std::thread::sleep(std::time::Duration::from_secs(3));
-            }
-        }
-    }
-}
+# -----------------------------------------------------------------------------
+# 3) Prompt the user to agree to the Nexus Beta Terms of Use if we're in an
+#    interactive mode (i.e., NONINTERACTIVE is not set) and no config.json file exists.
+#    We explicitly read from /dev/tty to ensure user input is requested from the
+#    terminal rather than the script's standard input.
+# -----------------------------------------------------------------------------
+while [ -z "$NONINTERACTIVE" ] && [ ! -f "$NEXUS_HOME/config.json" ]; do
+    read -p "Do you agree to the Nexus Beta Terms of Use (https://nexus.xyz/terms-of-use)? (Y/n) " yn </dev/tty
+    echo ""
 
-/// Sets up an authenticated worker session
-///
-/// This function handles all the common setup required for both TUI and headless modes:
-/// 1. Creates signing key for the prover
-/// 2. Sets up shutdown channel
-/// 3. Starts authenticated worker
-/// 4. Returns session data for mode-specific handling
-///
-/// # Arguments
-/// * `config` - Resolved configuration with node_id and client_id
-/// * `env` - Environment to connect to
-/// * `max_threads` - Optional maximum number of threads for proving
-///
-/// # Returns
-/// * `Ok(SessionData)` - Successfully set up session
-/// * `Err` - Session setup failed
-pub async fn setup_session(
-    config: Config,
-    env: Environment,
-    check_mem: bool,
-    max_threads: Option<u32>,
-    max_tasks: Option<u32>,
-) -> Result<SessionData, Box<dyn Error>> {
-    let node_id = config.node_id.parse::<u64>()?;
-    let client_id = config.user_id;
+    case $yn in
+        [Nn]* )
+            echo ""
+            exit;;
+        [Yy]* )
+            echo ""
+            break;;
+        "" )
+            echo ""
+            break;;
+        * )
+            echo "Please answer yes or no."
+            echo "";;
+    esac
+done
 
-    // Create a signing key for the prover
-    let mut csprng = rand_core::OsRng;
-    let signing_key: SigningKey = SigningKey::generate(&mut csprng);
+# -----------------------------------------------------------------------------
+# 4) Determine the platform and architecture and select the appropriate download URL
+# -----------------------------------------------------------------------------
+case "$(uname -s)" in
+    Linux*)
+        PLATFORM="linux"
+        case "$(uname -m)" in
+            x86_64)
+                ARCH="x86_64"
+                DOWNLOAD_URL="$LINUX_X86_64_URL"
+                ;;
+            aarch64|arm64)
+                ARCH="arm64"
+                DOWNLOAD_URL="$LINUX_ARM64_URL"
+                ;;
+            *)
+                echo "${RED}Unsupported architecture: $(uname -m)${NC}"
+                echo "Please build from source:"
+                echo "  git clone https://github.com/cheezeburger/nexus-cli.git"
+                echo "  cd nexus-cli/clients/cli"
+                echo "  cargo build --release"
+                exit 1
+                ;;
+        esac
+        ;;
+    Darwin*)
+        PLATFORM="macos"
+        case "$(uname -m)" in
+            x86_64)
+                ARCH="x86_64"
+                DOWNLOAD_URL="$MACOS_X86_64_URL"
+                echo "${ORANGE}Note: You are running on an Intel Mac.${NC}"
+                ;;
+            arm64)
+                ARCH="arm64"
+                DOWNLOAD_URL="$MACOS_ARM64_URL"
+                echo "${ORANGE}Note: You are running on an Apple Silicon Mac (M1/M2/M3).${NC}"
+                ;;
+            *)
+                echo "${RED}Unsupported architecture: $(uname -m)${NC}"
+                echo "Please build from source:"
+                echo "  git clone https://github.com/cheezeburger/nexus-cli.git"
+                echo "  cd nexus-cli/clients/cli"
+                echo "  cargo build --release"
+                exit 1
+                ;;
+        esac
+        ;;
+    MINGW*|MSYS*|CYGWIN*)
+        PLATFORM="windows"
+        case "$(uname -m)" in
+            x86_64)
+                ARCH="x86_64"
+                DOWNLOAD_URL="$WINDOWS_X86_64_URL"
+                ;;
+            *)
+                echo "${RED}Unsupported architecture: $(uname -m)${NC}"
+                echo "Please build from source:"
+                echo "  git clone https://github.com/cheezeburger/nexus-cli.git"
+                echo "  cd nexus-cli/clients/cli"
+                echo "  cargo build --release"
+                exit 1
+                ;;
+        esac
+        ;;
+    *)
+        echo "${RED}Unsupported platform: $(uname -s)${NC}"
+        echo "Please build from source:"
+        echo "  git clone https://github.com/cheezeburger/nexus-cli.git"
+        echo "  cd nexus-cli/clients/cli"
+        echo "  cargo build --release"
+        exit 1
+        ;;
+esac
 
-    // Create orchestrator client
-    let orchestrator_client = OrchestratorClient::new(env.clone());
+# -----------------------------------------------------------------------------
+# 5) Validate download URL and download the binary
+# -----------------------------------------------------------------------------
+if [ -z "$DOWNLOAD_URL" ] || echo "$DOWNLOAD_URL" | grep -q "__.*_URL__"; then
+    echo "${RED}No download URL available for $PLATFORM-$ARCH${NC}"
+    echo "This might indicate that no release exists for your platform."
+    echo "Please build from source:"
+    echo "  git clone https://github.com/cheezeburger/nexus-cli.git"
+    echo "  cd nexus-cli/clients/cli"
+    echo "  cargo build --release"
+    exit 1
+fi
 
-    // Warn the user if the memory demands of their configuration is risky
-    if check_mem {
-        warn_memory_configuration(max_threads);
-    }
+echo "Downloading custom release for ${GREEN}$PLATFORM-$ARCH${NC}..."
+echo "Downloading from: ${GREEN}$DOWNLOAD_URL${NC}"
 
-    // Clamp the number of workers to [1,8]. Keep this low for now to avoid rate limiting.
-    let num_workers: usize = max_threads.unwrap_or(1).clamp(1, 30) as usize;
+if ! curl -L -o "$BIN_DIR/nexus-network" "$DOWNLOAD_URL"; then
+    echo "${RED}Failed to download binary from $DOWNLOAD_URL${NC}"
+    echo "Please try again or build from source:"
+    echo "  git clone https://github.com/cheezeburger/nexus-cli.git"
+    echo "  cd nexus-cli/clients/cli"
+    echo "  cargo build --release"
+    exit 1
+fi
 
-    // Create shutdown channel - only one shutdown signal needed
-    let (shutdown_sender, _) = broadcast::channel(1);
+chmod +x "$BIN_DIR/nexus-network"
+ln -s "$BIN_DIR/nexus-network" "$BIN_DIR/nexus-cli"
+chmod +x "$BIN_DIR/nexus-cli"
 
-    // Start authenticated worker (only mode we support now)
-    let (event_receiver, join_handles, max_tasks_shutdown_sender) = start_authenticated_worker(
-        node_id,
-        signing_key,
-        orchestrator_client.clone(),
-        shutdown_sender.subscribe(),
-        env,
-        client_id,
-        max_tasks,
-    )
-    .await;
+# -----------------------------------------------------------------------------
+# 6) Add $BIN_DIR to PATH if not already present
+# -----------------------------------------------------------------------------
+case "$SHELL" in
+    */bash)
+        PROFILE_FILE="$HOME/.bashrc"
+        ;;
+    */zsh)
+        PROFILE_FILE="$HOME/.zshrc"
+        ;;
+    *)
+        PROFILE_FILE="$HOME/.profile"
+        ;;
+esac
 
-    Ok(SessionData {
-        event_receiver,
-        join_handles,
-        shutdown_sender,
-        max_tasks_shutdown_sender,
-        node_id,
-        orchestrator: orchestrator_client,
-        num_workers,
-    })
-}
+# Only append if not already in PATH
+if ! echo "$PATH" | grep -q "$BIN_DIR"; then
+    if ! grep -qs "$BIN_DIR" "$PROFILE_FILE"; then
+        echo "" >> "$PROFILE_FILE"
+        echo "# Add Nexus CLI to PATH" >> "$PROFILE_FILE"
+        echo "export PATH=\"$BIN_DIR:\$PATH\"" >> "$PROFILE_FILE"
+        echo "${GREEN}Updated PATH in $PROFILE_FILE${NC}"
+    fi
+fi
+
+echo ""
+echo "${GREEN}Custom Nexus CLI installation complete!${NC}"
+echo "Restart your terminal or run the following command to update your PATH:"
+echo "  source $PROFILE_FILE"
+echo ""
+echo "${ORANGE}To get your node ID, visit: https://app.nexus.xyz/nodes${NC}"
+echo ""
+echo "Register your user to begin linked proving with the Nexus CLI by: nexus-cli register-user --wallet-address <WALLET_ADDRESS>"
+echo "Or follow the guide at https://docs.nexus.xyz/layer-1/testnet/cli-node"
