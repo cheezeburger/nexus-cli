@@ -11,11 +11,11 @@ RED='\033[1;31m'
 NC='\033[0m'  # No Color
 
 # Release-specific download URLs for custom build
-LINUX_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-linux-x86_64"
-LINUX_ARM64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-linux-arm64"
-MACOS_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-macos-x86_64"
-MACOS_ARM64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-macos-arm64"
-WINDOWS_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_custom/nexus-network-windows-x86_64.exe"
+LINUX_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_cust/nexus-network-linux-x86_64"
+LINUX_ARM64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_cust/nexus-network-linux-arm64"
+MACOS_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_cust/nexus-network-macos-x86_64"
+MACOS_ARM64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_cust/nexus-network-macos-arm64"
+WINDOWS_X86_64_URL="https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.8_cust/nexus-network-windows-x86_64.exe"
 
 # Ensure the $NEXUS_HOME and $BIN_DIR directories exist.
 [ -d "$NEXUS_HOME" ] || mkdir -p "$NEXUS_HOME"
