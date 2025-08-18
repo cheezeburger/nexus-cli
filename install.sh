@@ -1,12 +1,14 @@
 #!/bin/sh
-# This script installs Nexus CLI on Linux and macOS.
-# It detects the current operating system architecture and installs the appropriate version.
+# This script installs Nexus on Linux.
+# It detects the current operating system architecture and installs the appropriate version of Nexus.
 
 set -eu
 
 status() { echo ">>> $*" >&1; }
 error() { echo "ERROR $*" >&2; exit 1; }
 warning() { echo "WARNING: $*"; }
+
+DEBUG_MODE=${DEBUG_MODE:-false}
 
 TEMP_DIR=$(mktemp -d)
 cleanup() { rm -rf $TEMP_DIR; }
@@ -29,16 +31,24 @@ require() {
 ARCH=$(uname -m)
 case "$ARCH" in 
     x86_64) ARCH="x86_64" ;;
-    aarch64|arm64) ARCH="arm64" ;;
+    aarch64|arm64) 
+        if [ "$(uname)" = "Darwin" ]; then
+            ARCH="arm64"
+        else
+            ARCH="arm64"
+        fi
+        ;;
     *) error "Unsupported architecture: $ARCH" ;;  
 esac
 
+if [ "$DEBUG_MODE" = "true" ]; then
+    echo "ARCH: $ARCH" >&2
+fi
+
 UNAME=$(uname -s)
-case "$UNAME" in
-    Linux) OS="linux" ;;
-    Darwin) OS="macos" ;;
-    *) error "Unsupported operating system: $UNAME" ;;
-esac
+if [ "$DEBUG_MODE" = "true" ]; then
+    echo "UNAME: $UNAME" >&2
+fi
 
 KERN=$(uname -r)
 case "$KERN" in
@@ -66,18 +76,28 @@ if [ -n "$NEEDS" ]; then
     exit 1
 fi
 
-# GitHub repository details
+# Build the arch tag expected by the releases
+case "$UNAME" in
+    Linux)
+        ARCH_TAG="linux-${ARCH}"
+        ;;
+    Darwin)
+        ARCH_TAG="macos-${ARCH}"
+        ;;
+    *)
+        error "Unsupported OS for arch tag generation: $UNAME"
+        ;;
+esac
+
+# GitHub release details
 REPO_OWNER="cheezeburger"
-REPO_NAME="nexus-cli" 
+REPO_NAME="nexus-cli"
 VERSION="v0.10.8_cust"
+BINARY_NAME="nexus-network-${ARCH_TAG}"
 
-# Construct binary name based on OS and architecture
-BINARY_NAME="nexus-network-${OS}-${ARCH}"
+status "Downloading Nexus for $ARCH_TAG..."
 
-# Download URL
 DOWNLOAD_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${VERSION}/${BINARY_NAME}"
-
-status "Downloading Nexus CLI for ${OS}-${ARCH}..."
 
 curl --fail --show-error --location --progress-bar \
      -o "$TEMP_DIR/nexus" \
