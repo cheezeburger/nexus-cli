@@ -51,9 +51,11 @@ esac
 
 SUDO=
 if [ "$(id -u)" -ne 0 ]; then
+    # Running as root, no need for sudo
     if ! available sudo; then
         error "This script requires superuser permissions. Please re-run as root."
     fi
+
     SUDO="sudo"
 fi
 
@@ -89,13 +91,38 @@ curl --fail --show-error --location --progress-bar \
 
 chmod +x "$TEMP_DIR/nexus"
 
-# Find installation directory
-for BINDIR in /usr/local/bin /usr/bin /bin; do
-    echo $PATH | grep -q $BINDIR && break || continue
+# Find installation directory - try user directories first
+BINDIR=""
+for dir in "$HOME/.local/bin" "$HOME/bin" /usr/local/bin /usr/bin /bin; do
+    if echo $PATH | grep -q "$dir"; then
+        BINDIR="$dir"
+        break
+    fi
 done
 
+if [ -z "$BINDIR" ]; then
+    # Default to ~/.local/bin and add to PATH
+    BINDIR="$HOME/.local/bin"
+    status "Adding $BINDIR to PATH for this session..."
+    export PATH="$BINDIR:$PATH"
+fi
+
 status "Installing nexus to $BINDIR..."
-$SUDO install -o0 -g0 -m755 -d $BINDIR
-$SUDO install -o0 -g0 -m755 $TEMP_DIR/nexus $BINDIR/nexus
+
+if [ "$BINDIR" = "$HOME/.local/bin" ] || [ "$BINDIR" = "$HOME/bin" ]; then
+    # User directory - no sudo needed
+    mkdir -p "$BINDIR"
+    install -m755 $TEMP_DIR/nexus $BINDIR/nexus
+else
+    # System directory - needs sudo
+    $SUDO install -o0 -g0 -m755 -d $BINDIR
+    $SUDO install -o0 -g0 -m755 $TEMP_DIR/nexus $BINDIR/nexus
+fi
+
+if [ "$BINDIR" = "$HOME/.local/bin" ]; then
+    status "Note: $BINDIR has been added to your PATH for this session."
+    status "To make it permanent, add this line to your shell profile:"
+    status "export PATH=\"\$HOME/.local/bin:\$PATH\""
+fi
 
 status 'Installation complete! Use "nexus --help" to get started.'
