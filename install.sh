@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 # Configuration
@@ -104,7 +104,5 @@ main() {
     install_nexus_cli
 }
 
-# Run if executed directly
-if [ "${0##*/}" = "install.sh" ] || [ "$0" = "sh" ] || [ "$0" = "/bin/sh" ]; then
-    main "$@"
-fi
+# Run main function
+main "$@"
