@@ -4,7 +4,6 @@ set -e
 # Configuration
 REPO="cheezeburger/nexus-cli"
 BINARY_NAME="nexus-cli"
-INSTALL_DIR="/usr/local/bin"
 
 # Colors for output
 RED='\033[0;31m'
@@ -83,19 +82,26 @@ install_nexus_cli() {
     # Make executable
     chmod +x "$temp_file"
     
+    # Find the best installation directory (like original script)
+    for BINDIR in /usr/local/bin /usr/bin /bin; do
+        echo $PATH | grep -q $BINDIR && break || continue
+    done
+    
+    printf "Installing nexus-cli to $BINDIR...\n"
+    
     # Install to system path or user local bin
-    if [ -w "$INSTALL_DIR" ]; then
-        mv "$temp_file" "$INSTALL_DIR/$BINARY_NAME"
+    if [ -w "$BINDIR" ]; then
+        mv "$temp_file" "$BINDIR/$BINARY_NAME"
     elif command -v sudo >/dev/null 2>&1; then
-        printf "${YELLOW}Installing to $INSTALL_DIR requires sudo...${NC}\n"
-        sudo mv "$temp_file" "$INSTALL_DIR/$BINARY_NAME"
+        printf "${YELLOW}Installing to $BINDIR requires sudo...${NC}\n"
+        sudo mv "$temp_file" "$BINDIR/$BINARY_NAME"
     else
         # Fallback to user local bin
         USER_BIN_DIR="$HOME/.local/bin"
         mkdir -p "$USER_BIN_DIR"
         mv "$temp_file" "$USER_BIN_DIR/$BINARY_NAME"
         printf "${YELLOW}Installed to $USER_BIN_DIR (add to PATH if needed)${NC}\n"
-        INSTALL_DIR="$USER_BIN_DIR"
+        BINDIR="$USER_BIN_DIR"
     fi
     
     printf "${GREEN}✓ Nexus CLI installed successfully!${NC}\n"
