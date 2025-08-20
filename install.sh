@@ -21,7 +21,7 @@ detect_platform() {
         darwin) os="macos" ;;
         linux) os="linux" ;;
         *) 
-            echo -e "${RED}Error: Unsupported OS: $os${NC}"
+            printf "${RED}Error: Unsupported OS: $os${NC}\n"
             exit 1
             ;;
     esac
@@ -30,7 +30,7 @@ detect_platform() {
         x86_64) arch="x86_64" ;;
         arm64|aarch64) arch="arm64" ;;
         *) 
-            echo -e "${RED}Error: Unsupported architecture: $arch${NC}"
+            printf "${RED}Error: Unsupported architecture: $arch${NC}\n"
             exit 1
             ;;
     esac
@@ -51,11 +51,11 @@ install_nexus_cli() {
     local version=$(get_latest_release)
     
     if [ -z "$version" ]; then
-        echo -e "${RED}Error: Could not fetch latest release${NC}"
+        printf "${RED}Error: Could not fetch latest release${NC}\n"
         exit 1
     fi
     
-    echo -e "${GREEN}Installing Nexus CLI ${version} for ${platform}...${NC}"
+    printf "${GREEN}Installing Nexus CLI ${version} for ${platform}...${NC}\n"
     
     # Construct download URL - adjust this based on your actual binary naming
     local binary_name="${BINARY_NAME}-${platform}"
@@ -72,7 +72,7 @@ install_nexus_cli() {
         echo "Trying alternative URL: $download_url"
         
         if ! curl -L "$download_url" -o "$temp_file" 2>/dev/null; then
-            echo -e "${RED}Error: Could not download binary${NC}"
+            printf "${RED}Error: Could not download binary${NC}\n"
             echo "Tried:"
             echo "  - https://github.com/$REPO/releases/download/$version/${BINARY_NAME}-${platform}"
             echo "  - https://github.com/$REPO/releases/download/$version/$BINARY_NAME"
@@ -83,21 +83,28 @@ install_nexus_cli() {
     # Make executable
     chmod +x "$temp_file"
     
-    # Install to system path
+    # Install to system path or user local bin
     if [ -w "$INSTALL_DIR" ]; then
         mv "$temp_file" "$INSTALL_DIR/$BINARY_NAME"
-    else
-        echo -e "${YELLOW}Installing to $INSTALL_DIR requires sudo...${NC}"
+    elif command -v sudo >/dev/null 2>&1; then
+        printf "${YELLOW}Installing to $INSTALL_DIR requires sudo...${NC}\n"
         sudo mv "$temp_file" "$INSTALL_DIR/$BINARY_NAME"
+    else
+        # Fallback to user local bin
+        USER_BIN_DIR="$HOME/.local/bin"
+        mkdir -p "$USER_BIN_DIR"
+        mv "$temp_file" "$USER_BIN_DIR/$BINARY_NAME"
+        printf "${YELLOW}Installed to $USER_BIN_DIR (add to PATH if needed)${NC}\n"
+        INSTALL_DIR="$USER_BIN_DIR"
     fi
     
-    echo -e "${GREEN}✓ Nexus CLI installed successfully!${NC}"
-    echo -e "${GREEN}✓ You can now run: nexus-cli --help${NC}"
+    printf "${GREEN}✓ Nexus CLI installed successfully!${NC}\n"
+    printf "${GREEN}✓ You can now run: nexus-cli --help${NC}\n"
 }
 
 # Main execution
 main() {
-    echo -e "${GREEN}Nexus CLI Installer${NC}"
+    printf "${GREEN}Nexus CLI Installer${NC}\n"
     echo "Repository: $REPO"
     echo
     
