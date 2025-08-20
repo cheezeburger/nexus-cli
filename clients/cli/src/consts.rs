@@ -44,8 +44,8 @@ pub mod cli_consts {
         pub const MAX_RETRIES: u32 = 2;
 
         /// Minimum interval between task fetch requests (milliseconds)
-        /// Set to 2 minutes to align with server task creation frequency
-        pub const RATE_LIMIT_INTERVAL_MS: u64 = 120_000;
+        /// Modified for testnet stress testing
+        pub const RATE_LIMIT_INTERVAL_MS: u64 = 0;
 
         /// Helper function to get initial backoff duration
         pub const fn initial_backoff() -> Duration {
@@ -71,8 +71,8 @@ pub mod cli_consts {
         pub const MAX_RETRIES: u32 = 5;
 
         /// Minimum interval between submission requests (milliseconds)
-        /// Less restrictive than task fetching
-        pub const RATE_LIMIT_INTERVAL_MS: u64 = 100;
+        /// Modified for testnet stress testing
+        pub const RATE_LIMIT_INTERVAL_MS: u64 = 0;
 
         /// Helper function to get initial backoff duration
         pub const fn initial_backoff() -> Duration {
@@ -90,13 +90,13 @@ pub mod cli_consts {
         use std::time::Duration;
 
         /// Maximum requests per time window for task fetching
-        pub const TASK_FETCH_MAX_REQUESTS_PER_WINDOW: u32 = 60;
+        pub const TASK_FETCH_MAX_REQUESTS_PER_WINDOW: u32 = 1000;
 
         /// Time window duration for task fetching rate limiting (milliseconds)
-        pub const TASK_FETCH_WINDOW_MS: u64 = 60_000; // 1 minute
+        pub const TASK_FETCH_WINDOW_MS: u64 = 10; // 10ms for stress testing
 
         /// Maximum requests per time window for proof submission
-        pub const SUBMISSION_MAX_REQUESTS_PER_WINDOW: u32 = 100;
+        pub const SUBMISSION_MAX_REQUESTS_PER_WINDOW: u32 = 9999;
 
         /// Time window duration for proof submission rate limiting (milliseconds)
         pub const SUBMISSION_WINDOW_MS: u64 = 60_000; // 1 minute
