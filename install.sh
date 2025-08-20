@@ -105,6 +105,6 @@ main() {
 }
 
 # Run if executed directly
-if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
+if [ "${0##*/}" = "install.sh" ] || [ "$0" = "sh" ] || [ "$0" = "/bin/sh" ]; then
     main "$@"
 fi
