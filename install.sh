@@ -56,8 +56,8 @@ install_nexus_cli() {
     
     printf "${GREEN}Installing Nexus CLI ${version} for ${platform}...${NC}\n"
     
-    # Construct download URL - adjust this based on your actual binary naming
-    local binary_name="${BINARY_NAME}-${platform}"
+    # Construct download URL - binaries are named nexus-network-*
+    local binary_name="nexus-network-${platform}"
     local download_url="https://github.com/$REPO/releases/download/$version/$binary_name"
     
     # Try different possible binary names if the first fails
@@ -66,15 +66,15 @@ install_nexus_cli() {
     echo "Downloading from: $download_url"
     
     if ! curl -L "$download_url" -o "$temp_file" 2>/dev/null; then
-        # Try without platform suffix
-        download_url="https://github.com/$REPO/releases/download/$version/$BINARY_NAME"
+        # Try nexus-cli naming as fallback
+        download_url="https://github.com/$REPO/releases/download/$version/${BINARY_NAME}-${platform}"
         echo "Trying alternative URL: $download_url"
         
         if ! curl -L "$download_url" -o "$temp_file" 2>/dev/null; then
             printf "${RED}Error: Could not download binary${NC}\n"
             echo "Tried:"
+            echo "  - https://github.com/$REPO/releases/download/$version/nexus-network-${platform}"
             echo "  - https://github.com/$REPO/releases/download/$version/${BINARY_NAME}-${platform}"
-            echo "  - https://github.com/$REPO/releases/download/$version/$BINARY_NAME"
             exit 1
         fi
     fi
