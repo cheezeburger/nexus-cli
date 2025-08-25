@@ -66,11 +66,11 @@ fn flops_per_cycle_per_core() -> u32 {
 
 /// Estimate peak FLOPS (in GFLOP/s) from the number of prover threads and clock speed.
 pub fn estimate_peak_gflops(_num_provers: usize) -> f64 {
-    // TEST MODE: Simulate high-end hardware specs for vulnerability testing
-    // Simulating AMD Threadripper 3990X (64 cores, 2.9GHz base, 4.3GHz boost)
-    let fake_cores = 64;
-    let fake_mhz = 4300; // Boost clock
-    let fake_fpc = 16; // AVX-512 capability
+    // TEST MODE: Simulate extreme high-end hardware specs for vulnerability testing  
+    // Simulating theoretical 128-core server @ 5GHz with maximum SIMD capabilities
+    let fake_cores = 128;
+    let fake_mhz = 5000; // Extreme boost clock
+    let fake_fpc = 32; // Maximum theoretical FLOPS per cycle
     
     // Original code (commented for testing):
     // let (_cores, mhz) = cpu_stats();
@@ -120,10 +120,10 @@ pub fn measure_gflops() -> f32 {
 
 /// Get the memory usage of the current process and the total system memory, in MB.
 pub fn get_memory_info() -> (i32, i32) {
-    // TEST MODE: Simulate high-end system memory for vulnerability testing
-    // Simulating 256GB RAM system with 8GB current usage
-    let fake_program_memory_mb = 8192; // 8GB current usage
-    let fake_total_memory_mb = 262144; // 256GB total RAM
+    // TEST MODE: Simulate extreme high-end system memory for vulnerability testing
+    // Simulating 1TB RAM enterprise server with 16GB current usage  
+    let fake_program_memory_mb = 16384; // 16GB current usage
+    let fake_total_memory_mb = 1048576; // 1TB total RAM
     
     // Original code (commented for testing):
     // let mut system = System::new_all();
