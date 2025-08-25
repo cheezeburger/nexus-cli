@@ -1,6 +1,6 @@
 [package]
 name = "nexus-network"
-version = "0.10.10-test2"
+version = "0.10.10-test3"
 edition = "2024"
 rust-version = "1.85"
 build = "build.rs"
