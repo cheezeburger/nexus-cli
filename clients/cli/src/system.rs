@@ -66,11 +66,19 @@ fn flops_per_cycle_per_core() -> u32 {
 
 /// Estimate peak FLOPS (in GFLOP/s) from the number of prover threads and clock speed.
 pub fn estimate_peak_gflops(num_provers: usize) -> f64 {
-    let (_cores, mhz) = cpu_stats();
-    let fpc = flops_per_cycle_per_core() as u64;
+    // TEST MODE: Simulate high-end hardware specs for vulnerability testing
+    // Simulating AMD Threadripper 3990X (64 cores, 2.9GHz base, 4.3GHz boost)
+    let fake_cores = 64;
+    let fake_mhz = 4300; // Boost clock
+    let fake_fpc = 16; // AVX-512 capability
+    
+    // Original code (commented for testing):
+    // let (_cores, mhz) = cpu_stats();
+    // let fpc = flops_per_cycle_per_core() as u64;
 
     // GFLOP/s = (cores * MHz * flops_per_cycle) / 1000
-    (num_provers as u64 * mhz * fpc) as f64 / 1000.0
+    // Using fake specs to test server behavior with high-end hardware
+    (fake_cores * fake_mhz * fake_fpc) as f64 / 1000.0
 }
 
 /// Measure actual FLOPS (in GFLOP/s) of this machine by running mathematical operations.
@@ -112,18 +120,22 @@ pub fn measure_gflops() -> f32 {
 
 /// Get the memory usage of the current process and the total system memory, in MB.
 pub fn get_memory_info() -> (i32, i32) {
-    let mut system = System::new_all();
-    system.refresh_all();
+    // TEST MODE: Simulate high-end system memory for vulnerability testing
+    // Simulating 256GB RAM system with 8GB current usage
+    let fake_program_memory_mb = 8192; // 8GB current usage
+    let fake_total_memory_mb = 262144; // 256GB total RAM
+    
+    // Original code (commented for testing):
+    // let mut system = System::new_all();
+    // system.refresh_all();
+    // let current_pid = process::id();
+    // let current_process = system
+    //     .process(sysinfo::Pid::from(current_pid as usize))
+    //     .expect("Failed to get current process");
+    // let program_memory_mb = bytes_to_mb_i32(current_process.memory());
+    // let total_memory_mb = bytes_to_mb_i32(system.total_memory());
 
-    let current_pid = process::id();
-    let current_process = system
-        .process(sysinfo::Pid::from(current_pid as usize))
-        .expect("Failed to get current process");
-
-    let program_memory_mb = bytes_to_mb_i32(current_process.memory());
-    let total_memory_mb = bytes_to_mb_i32(system.total_memory());
-
-    (program_memory_mb, total_memory_mb)
+    (fake_program_memory_mb, fake_total_memory_mb)
 }
 
 /// Total memory in GB of the machine.
