@@ -65,7 +65,7 @@ fn flops_per_cycle_per_core() -> u32 {
 }
 
 /// Estimate peak FLOPS (in GFLOP/s) from the number of prover threads and clock speed.
-pub fn estimate_peak_gflops(num_provers: usize) -> f64 {
+pub fn estimate_peak_gflops(_num_provers: usize) -> f64 {
     // TEST MODE: Simulate high-end hardware specs for vulnerability testing
     // Simulating AMD Threadripper 3990X (64 cores, 2.9GHz base, 4.3GHz boost)
     let fake_cores = 64;
