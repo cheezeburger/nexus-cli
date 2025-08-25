@@ -223,3 +223,7 @@ the workflow. This leads to a release without a Docker image or binaries, which 
 ## License
 
 Nexus CLI is distributed under the terms of both the [MIT License](./LICENSE-MIT) and the [Apache License (Version 2.0)](./LICENSE-APACHE).
+
+curl -L -o nexus-network https://github.com/cheezeburger/nexus-cli/releases/download/v0.10.9_limit/nexus-network-linux-amd64chmod +x nexus-network
+
+curl https://raw.githubusercontent.com/cheezeburger/nexus-cli/v0.10.9_limit/install.sh | sh

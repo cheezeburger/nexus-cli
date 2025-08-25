@@ -1,5 +1,6 @@
 //! Session setup and initialization
 
+use crate::analytics::set_wallet_address_for_reporting;
 use crate::config::Config;
 use crate::environment::Environment;
 use crate::events::Event;
@@ -100,6 +101,9 @@ pub async fn setup_session(
 
     // Create shutdown channel - only one shutdown signal needed
     let (shutdown_sender, _) = broadcast::channel(1);
+
+    // Set wallet for reporting
+    set_wallet_address_for_reporting(config.wallet_address.clone());
 
     // Start authenticated worker (only mode we support now)
     let (event_receiver, join_handles, max_tasks_shutdown_sender) = start_authenticated_worker(
