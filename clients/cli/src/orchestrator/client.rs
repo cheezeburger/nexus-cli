@@ -5,7 +5,7 @@
 use crate::environment::Environment;
 use crate::nexus_orchestrator::{
     GetProofTaskRequest, GetProofTaskResponse, NodeType, RegisterNodeRequest, RegisterNodeResponse,
-    RegisterUserRequest, SubmitProofRequest, TaskDifficulty, UserResponse,
+    RegisterUserRequest, SubmitProofRequest, UserResponse,
 };
 use crate::orchestrator::Orchestrator;
 use crate::orchestrator::error::OrchestratorError;
@@ -27,6 +27,23 @@ use std::time::Duration;
 /// 3. `Vec<String>`: list of per-input proof hashes (used for `AllProofHashes`; empty otherwise)
 pub(crate) type ProofPayload = (Vec<u8>, Vec<Vec<u8>>, Vec<String>);
 
+/// Result of fetching a proof task, including both the task and its actual difficulty
+#[derive(Debug, Clone)]
+pub struct ProofTaskResult {
+    pub task: Task,
+    pub actual_difficulty: crate::nexus_orchestrator::TaskDifficulty,
+}
+
+impl std::fmt::Display for ProofTaskResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Task {} (difficulty: {:?})",
+            self.task.task_id, self.actual_difficulty
+        )
+    }
+}
+
 // Build timestamp in milliseconds since epoch
 static BUILD_TIMESTAMP: &str = match option_env!("BUILD_TIMESTAMP") {
     Some(timestamp) => timestamp,
@@ -40,7 +57,7 @@ const USER_AGENT: &str = concat!("nexus-cli/", env!("CARGO_PKG_VERSION"));
 // Only stores 2-letter country codes (e.g., "US", "CA", "GB") to help route
 // requests to the nearest Nexus network servers for better performance.
 // No precise location, IP addresses, or personal data is collected or stored.
-static COUNTRY_CODE: OnceLock<String> = OnceLock::new();
+pub(crate) static COUNTRY_CODE: OnceLock<String> = OnceLock::new();
 
 #[derive(Debug, Clone)]
 pub struct OrchestratorClient {
@@ -58,6 +75,12 @@ impl OrchestratorClient {
                 .expect("Failed to create HTTP client"),
             environment,
         }
+    }
+
+    /// Public accessor for privacy-preserving country code (cached during run)
+    #[allow(dead_code)]
+    pub async fn country(&self) -> String {
+        self.get_country().await
     }
 
     fn build_url(&self, endpoint: &str) -> String {
@@ -271,6 +294,54 @@ impl OrchestratorClient {
     }
 }
 
+/// Detect country code once globally without requiring a client instance.
+/// This ensures callers don't need to sequence a warm-up before using the result.
+pub(crate) async fn detect_country_once() -> String {
+    if let Some(country) = COUNTRY_CODE.get() {
+        return country.clone();
+    }
+
+    let client = match ClientBuilder::new().timeout(Duration::from_secs(5)).build() {
+        Ok(c) => c,
+        Err(_) => return "US".to_string(),
+    };
+
+    // Try Cloudflare first
+    if let Ok(response) = client
+        .get("https://cloudflare.com/cdn-cgi/trace")
+        .send()
+        .await
+    {
+        if let Ok(text) = response.text().await {
+            for line in text.lines() {
+                if let Some(country) = line.strip_prefix("loc=") {
+                    let country = country.trim().to_uppercase();
+                    if country.len() == 2 && country.chars().all(|c| c.is_ascii_alphabetic()) {
+                        let _ = COUNTRY_CODE.set(country.clone());
+                        return country;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback to ipinfo.io
+    if let Ok(response) = client.get("https://ipinfo.io/country").send().await {
+        if let Ok(text) = response.text().await {
+            let country = text.trim().to_uppercase();
+            if country.len() == 2 && country.chars().all(|c| c.is_ascii_alphabetic()) {
+                let _ = COUNTRY_CODE.set(country.clone());
+                return country;
+            }
+        }
+    }
+
+    // Default fallback
+    let fallback = "US".to_string();
+    let _ = COUNTRY_CODE.set(fallback.clone());
+    fallback
+}
+
 #[async_trait::async_trait]
 impl Orchestrator for OrchestratorClient {
     fn environment(&self) -> &Environment {
@@ -323,16 +394,24 @@ impl Orchestrator for OrchestratorClient {
         &self,
         node_id: &str,
         verifying_key: VerifyingKey,
-    ) -> Result<Task, OrchestratorError> {
+        max_difficulty: crate::nexus_orchestrator::TaskDifficulty,
+    ) -> Result<ProofTaskResult, OrchestratorError> {
         let request = GetProofTaskRequest {
             node_id: node_id.to_string(),
             node_type: NodeType::CliProver as i32,
             ed25519_public_key: verifying_key.to_bytes().to_vec(),
-            max_difficulty: TaskDifficulty::Large as i32,
+            max_difficulty: max_difficulty as i32,
         };
         let request_bytes = Self::encode_request(&request);
         let response: GetProofTaskResponse = self.post_request("v3/tasks", request_bytes).await?;
-        Ok(Task::from(&response))
+
+        let task = Task::from(&response);
+        let actual_difficulty = task.difficulty;
+
+        Ok(ProofTaskResult {
+            task,
+            actual_difficulty,
+        })
     }
 
     async fn submit_proof(
@@ -424,7 +503,13 @@ mod live_orchestrator_tests {
         let node_id = "5880437"; // Example node ID
         let signing_key = ed25519_dalek::SigningKey::generate(&mut rand::thread_rng());
         let verifying_key = signing_key.verifying_key();
-        let result = client.get_proof_task(node_id, verifying_key).await;
+        let result = client
+            .get_proof_task(
+                node_id,
+                verifying_key,
+                crate::nexus_orchestrator::TaskDifficulty::SmallMedium,
+            )
+            .await;
         match result {
             Ok(task) => {
                 println!("Got proof task: {}", task);

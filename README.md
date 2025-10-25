@@ -29,7 +29,7 @@ There have been several testnets so far:
 - Testnet 0: [October 8 – 28, 2024](https://blog.nexus.xyz/nexus-launches-worlds-first-open-prover-network/)
 - Testnet I: [December 9 – 13, 2024](https://blog.nexus.xyz/the-new-nexus-testnet-is-live/)
 - Testnet II: [February 18 – 22, 2025](https://blog.nexus.xyz/testnet-ii-is-open/)
-- Devnet: [February 22 - June 20 2025](https://docs.nexus.xyz/layer-1/testnet/devnet)
+- Devnet: [February 22 - June 20, 2025](https://docs.nexus.xyz/layer-1/testnet/devnet)
 - Testnet III: [Ongoing](https://blog.nexus.xyz/live-everywhere/)
 
 ---
@@ -46,12 +46,7 @@ For the simplest and most reliable installation:
 curl https://cli.nexus.xyz/ | sh
 ```
 
-This will:
-1. Download and install the latest precompiled binary for your platform.
-2. Prompt you to accept the Terms of Use.
-3. Start the CLI in interactive mode.
-
-The template installation script is viewable [here](./public/install.sh.template).
+This downloads the latest binary, prompts for Terms of Use acceptance, and starts interactive mode.
 
 #### Non-Interactive Installation
 
@@ -77,9 +72,17 @@ Alternatively, you can register your wallet address and create a node ID with th
 
 ```bash
 nexus-cli register-user --wallet-address <your-wallet-address>
-nexus-cli register-node
+nexus-cli register-node --node-id <your-cli-node-id>
 nexus-cli start
 ```
+
+To run the CLI noninteractively, you can also opt to start it in headless mode.
+
+```bash
+nexus-cli start --headless
+```
+
+#### Quick Reference
 
 The `register-user` and `register-node` commands will save your credentials to `~/.nexus/config.json`. To clear credentials, run:
 
@@ -87,34 +90,105 @@ The `register-user` and `register-node` commands will save your credentials to `
 nexus-cli logout
 ```
 
-For troubleshooting or to see available command line options, run:
+For troubleshooting or to see available command-line options, run:
 
 ```bash
 nexus-cli --help
 ```
 
-### Use Docker
-Make sure docker and docker compose have been installed on you machine. check documentation here:
-- [Install Docker](https://docs.docker.com/engine/install/)
-- [Install Docker Compose](https://docs.docker.com/compose/install/)
+### Adaptive Task Difficulty
 
-Then, modify the node id in the `docker-compose.yaml` file, run:
+The Nexus CLI features an **adaptive difficulty system** that automatically adjusts task difficulty based on your node's performance. This ensures optimal resource utilization while preventing system overload.
+
+#### How It Works
+
+- **Starts at**: `small` difficulty
+- **Auto-promotes**: If tasks complete in < 7 minutes
+
+#### When to Override Difficulty
+
+**Lower Difficulty** (e.g. `Small` or `SmallMedium`):
+- Resource-constrained systems
+- Background processing alongside other apps
+- Testing/development environments
+- Battery-powered devices
+
+**Higher Difficulty** (e.g. `Large`, `ExtraLarge`, or `ExtraLarge2`):
+- High-performance hardware (8+ cores, 16+ GB RAM)
+- Dedicated proving machines
+- Maximum reward optimization
+
+#### Using Difficulty Override
+
+```bash
+# Lower difficulty for resource-constrained systems
+nexus-cli start --max-difficulty small
+nexus-cli start --max-difficulty small_medium
+
+# Higher difficulty for powerful hardware
+nexus-cli start --max-difficulty medium
+nexus-cli start --max-difficulty large
+nexus-cli start --max-difficulty extra_large
+nexus-cli start --max-difficulty extra_large_2
+nexus-cli start --max-difficulty extra_large_3
+nexus-cli start --max-difficulty extra_large_4
+
+# Equivalent to extra_large_4 if no extra_large_5 tasks available
+nexus-cli start --max-difficulty extra_large_5
+
+# Case-insensitive (all equivalent)
+nexus-cli start --max-difficulty MEDIUM
+nexus-cli start --max-difficulty medium
+nexus-cli start --max-difficulty Medium
+```
+
+#### Difficulty Guidelines
+
+| Difficulty | Use Case |
+|------------|----------|
+| `small` | Default, starting task |
+| `small_medium` | Building reputation |
+| `medium` and `large` | Standard desktop/laptop |
+| `extra_large` and above | High-performance systems, more points |
+
+> **Tip**: Use `nexus-cli start --help` to see the full auto-promotion details in the CLI help text.
+
+#### Troubleshooting Difficulty Issues
+
+**Tasks taking too long:**
+
+Try a lower difficulty.
+
+```bash
+nexus-cli start --max-difficulty small_medium
+```
+
+**Want more challenging tasks:**
+
+Request a harder difficulty. It will still take time to build up reputation to get the requested difficulty.
+
+```bash
+nexus-cli start --max-difficulty extra_large_2
+```
+
+**Unsure about system capabilities:**
+- Use the default adaptive system (no `--max-difficulty` needed)
+- The system will automatically find the optimal difficulty for your hardware
+- Only override if you're fine-tuning performance
+
+### Docker Installation
+
+For containerized deployments:
+
+1. Install [Docker](https://docs.docker.com/engine/install/) and [Docker Compose](https://docs.docker.com/compose/install/)
+2. Update the node ID in `docker-compose.yaml`
+3. Build and run:
 
 ```bash
 docker compose build --no-cache
 docker compose up -d
-```
-
-Check log
-
-```bash
-docker compose logs
-```
-
-If you want to shut down, run:
-
-```bash
-docker compose down
+docker compose logs  # Check logs
+docker compose down  # Shutdown
 ```
 
 ---
@@ -166,7 +240,7 @@ itself.
 
 ### 🛠  Developer Guide
 
-The following steps may be required in order to setup a development environment for contributing to the project:
+The following steps may be required in order to set up a development environment for contributing to the project:
 
 #### Linux
 
@@ -196,29 +270,6 @@ then see Linux instructions above.
 # Install using Chocolatey
 choco install protobuf
 ```
-
-### Building ProtoBuf files
-
-To build the ProtoBuf files, run the following command in the `clients/cli` directory:
-
-```bash
-cargo build --features build_proto
-```
-
-### Creating a Release
-
-To create a release, update the package version in `Cargo.toml`, then create and push a new (annotated) tag, e.g.:
-
-```bash
-git tag -a v0.1.2 -m "Release v0.1.2"
-git push origin v0.1.2
-```
-
-This will trigger the GitHub Actions release workflow that compiles binaries and pushes the Docker image, in
-addition to creating release.
-
-**WARNING**: Creating a release through the GitHub UI creates a new release but does **NOT** trigger
-the workflow. This leads to a release without a Docker image or binaries, which breaks the installation script.
 
 ## License
 

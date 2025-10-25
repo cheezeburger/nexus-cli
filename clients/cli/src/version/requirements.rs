@@ -1,6 +1,7 @@
 use reqwest::Client;
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
@@ -25,6 +26,9 @@ pub enum VersionRequirementsError {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct VersionRequirements {
     pub version_constraints: Vec<VersionConstraint>,
+    /// Map of OFAC-restricted country/region codes to display names.
+    #[serde(default, alias = "ofac_restricted_map")]
+    pub ofac_country_names: HashMap<String, Option<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -222,6 +226,7 @@ mod tests {
                     start_date: None,
                 },
             ],
+            ofac_country_names: Default::default(),
         };
 
         // Test constraint checking
@@ -266,6 +271,7 @@ mod tests {
                     start_date: None,
                 },
             ],
+            ofac_country_names: Default::default(),
         };
 
         // Test that versions with 'v' prefix are handled correctly
@@ -298,6 +304,7 @@ mod tests {
                     start_date: None,
                 },
             ],
+            ofac_country_names: Default::default(),
         };
 
         // Test that blocking takes precedence over warning and notice
@@ -321,6 +328,7 @@ mod tests {
                     .to_string(),
                 start_date: None,
             }],
+            ofac_country_names: Default::default(),
         };
 
         let result = config

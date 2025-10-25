@@ -43,6 +43,11 @@ pub struct Task {
     /// The type of task (proof required or only hash)
     #[prost(enumeration = "TaskType", tag = "6")]
     pub task_type: i32,
+    /// The actual difficulty level assigned to this task by the server.
+    /// This accounts for reputation-based gating and allows clients to track
+    /// the actual difficulty they're receiving vs what they requested.
+    #[prost(enumeration = "TaskDifficulty", tag = "7")]
+    pub difficulty: i32,
 }
 /// Get outstanding tasks for a node.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -214,12 +219,17 @@ impl NodeType {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum TaskDifficulty {
-    /// Small difficulty bucket
+    /// Small difficulty bucket; not used by default for CLI
+    /// but can be overridden via --max-difficulty argument
     Small = 0,
-    /// Medium difficulty bucket
+    SmallMedium = 3,
     Medium = 5,
-    /// Large difficulty bucket
     Large = 10,
+    ExtraLarge = 15,
+    ExtraLarge2 = 16,
+    ExtraLarge3 = 17,
+    ExtraLarge4 = 18,
+    ExtraLarge5 = 19,
 }
 impl TaskDifficulty {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -229,16 +239,28 @@ impl TaskDifficulty {
     pub fn as_str_name(&self) -> &'static str {
         match self {
             Self::Small => "SMALL",
+            Self::SmallMedium => "SMALL_MEDIUM",
             Self::Medium => "MEDIUM",
             Self::Large => "LARGE",
+            Self::ExtraLarge => "EXTRA_LARGE",
+            Self::ExtraLarge2 => "EXTRA_LARGE_2",
+            Self::ExtraLarge3 => "EXTRA_LARGE_3",
+            Self::ExtraLarge4 => "EXTRA_LARGE_4",
+            Self::ExtraLarge5 => "EXTRA_LARGE_5",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "SMALL" => Some(Self::Small),
+            "SMALL_MEDIUM" => Some(Self::SmallMedium),
             "MEDIUM" => Some(Self::Medium),
             "LARGE" => Some(Self::Large),
+            "EXTRA_LARGE" => Some(Self::ExtraLarge),
+            "EXTRA_LARGE_2" => Some(Self::ExtraLarge2),
+            "EXTRA_LARGE_3" => Some(Self::ExtraLarge3),
+            "EXTRA_LARGE_4" => Some(Self::ExtraLarge4),
+            "EXTRA_LARGE_5" => Some(Self::ExtraLarge5),
             _ => None,
         }
     }

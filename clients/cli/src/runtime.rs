@@ -10,6 +10,7 @@ use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
 
 /// Start single authenticated worker
+#[allow(clippy::too_many_arguments)]
 pub async fn start_authenticated_worker(
     node_id: u64,
     signing_key: SigningKey,
@@ -18,12 +19,16 @@ pub async fn start_authenticated_worker(
     environment: Environment,
     client_id: String,
     max_tasks: Option<u32>,
+    max_difficulty: Option<crate::nexus_orchestrator::TaskDifficulty>,
+    num_workers: usize,
 ) -> (
     mpsc::Receiver<Event>,
     Vec<JoinHandle<()>>,
     broadcast::Sender<()>,
 ) {
-    let config = WorkerConfig::new(environment, client_id);
+    let mut config = WorkerConfig::new(environment, client_id);
+    config.max_difficulty = max_difficulty;
+    config.num_workers = num_workers;
     let (event_sender, event_receiver) =
         mpsc::channel::<Event>(crate::consts::cli_consts::EVENT_QUEUE_SIZE);
 

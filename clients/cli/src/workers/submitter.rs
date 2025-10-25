@@ -133,6 +133,8 @@ impl ProofSubmitter {
                 // Track analytics for successful submission
                 self.track_successful_submission(task).await;
 
+                // Reporting now handled inside analytics success functions
+
                 Ok(())
             }
             Err((e, attempts)) => {

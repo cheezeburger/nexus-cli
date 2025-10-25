@@ -1,6 +1,6 @@
 //! Session setup and initialization
 
-// Removed missing import: set_wallet_address_for_reporting
+use crate::analytics::set_wallet_address_for_reporting;
 use crate::config::Config;
 use crate::environment::Environment;
 use crate::events::Event;
@@ -29,6 +29,25 @@ pub struct SessionData {
     pub orchestrator: OrchestratorClient,
     /// Number of workers (for display purposes)
     pub num_workers: usize,
+}
+
+/// Clamp thread count based on available system memory
+/// Returns the maximum number of threads that can be safely used given system memory
+fn clamp_threads_by_memory(requested_threads: usize) -> usize {
+    let mut sysinfo = System::new();
+    sysinfo.refresh_memory();
+
+    let total_system_memory = sysinfo.total_memory();
+    let memory_per_thread = crate::consts::cli_consts::PROJECTED_MEMORY_REQUIREMENT;
+
+    // Calculate max threads based on total system memory
+    // Reserve 25% of system memory for OS and other processes
+    let available_memory = (total_system_memory as f64 * 0.75) as u64;
+    let max_threads_by_memory = (available_memory / memory_per_thread) as usize;
+
+    // Return the minimum of requested threads and memory-limited threads
+    // Always allow at least 1 thread
+    requested_threads.min(max_threads_by_memory.max(1))
 }
 
 /// Warn the user if their available memory seems insufficient for the task(s) at hand
@@ -70,6 +89,7 @@ pub fn warn_memory_configuration(max_threads: Option<u32>) {
 /// * `config` - Resolved configuration with node_id and client_id
 /// * `env` - Environment to connect to
 /// * `max_threads` - Optional maximum number of threads for proving
+/// * `max_difficulty` - Optional override for task difficulty
 ///
 /// # Returns
 /// * `Ok(SessionData)` - Successfully set up session
@@ -80,6 +100,7 @@ pub async fn setup_session(
     check_mem: bool,
     max_threads: Option<u32>,
     max_tasks: Option<u32>,
+    max_difficulty: Option<crate::nexus_orchestrator::TaskDifficulty>,
 ) -> Result<SessionData, Box<dyn Error>> {
     let node_id = config.node_id.parse::<u64>()?;
     let client_id = config.user_id;
@@ -91,19 +112,35 @@ pub async fn setup_session(
     // Create orchestrator client
     let orchestrator_client = OrchestratorClient::new(env.clone());
 
-    // Warn the user if the memory demands of their configuration is risky
-    if check_mem {
-        warn_memory_configuration(max_threads);
+    // Clamp the number of workers to [1, 75% of num_cores]. Leave room for other processes.
+    let total_cores = crate::system::num_cores();
+    let max_workers = ((total_cores as f64 * 0.75).ceil() as usize).max(1);
+    let mut num_workers: usize = max_threads.unwrap_or(1).clamp(1, max_workers as u32) as usize;
+
+    // Check memory and clamp threads if max-threads was explicitly set OR check-memory flag is set
+    if max_threads.is_some() || check_mem {
+        let memory_clamped_workers = clamp_threads_by_memory(num_workers);
+        if memory_clamped_workers < num_workers {
+            crate::print_cmd_warn!(
+                "Memory limit",
+                "Reduced thread count from {} to {} due to insufficient memory. Each thread requires ~4GB RAM.",
+                num_workers,
+                memory_clamped_workers
+            );
+            num_workers = memory_clamped_workers;
+        }
     }
 
-    // Clamp the number of workers to [1,8]. Keep this low for now to avoid rate limiting.
-    let num_workers: usize = max_threads.unwrap_or(1).max(1) as usize;
+    // Additional memory warning if explicitly requested
+    if check_mem {
+        warn_memory_configuration(Some(num_workers as u32));
+    }
 
     // Create shutdown channel - only one shutdown signal needed
     let (shutdown_sender, _) = broadcast::channel(1);
 
-    // Set wallet for reporting (removed missing function call)
-    // set_wallet_address_for_reporting(config.wallet_address.clone());
+    // Set wallet for reporting
+    set_wallet_address_for_reporting(config.wallet_address.clone());
 
     // Start authenticated worker (only mode we support now)
     let (event_receiver, join_handles, max_tasks_shutdown_sender) = start_authenticated_worker(
@@ -114,6 +151,8 @@ pub async fn setup_session(
         env,
         client_id,
         max_tasks,
+        max_difficulty,
+        num_workers,
     )
     .await;
 

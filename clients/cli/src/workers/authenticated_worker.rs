@@ -109,6 +109,9 @@ impl AuthenticatedWorker {
             }
         };
 
+        // Time starts from successfully obtaining the task
+        let start_time = std::time::Instant::now();
+
         // Step 2: Prove task
         // Send state change to Proving
         self.event_sender
@@ -139,6 +142,26 @@ impl AuthenticatedWorker {
         if submission_result.is_ok() {
             self.tasks_completed += 1;
 
+            // Update success tracking for difficulty promotion
+            let duration_secs = start_time.elapsed().as_secs();
+            self.fetcher.update_success_tracking(duration_secs);
+
+            // Send information about completing the task
+            self.event_sender
+                .send_event(Event::state_change(
+                    ProverState::Waiting,
+                    format!(
+                        "{} completed, Task size: {}, Duration: {}s, Difficulty: {}",
+                        task.task_id,
+                        task.public_inputs_list.len(),
+                        self.fetcher.last_success_duration_secs.unwrap_or(0),
+                        self.fetcher
+                            .last_success_difficulty
+                            .map(|difficulty| difficulty.as_str_name())
+                            .unwrap_or("Unknown")
+                    ),
+                ))
+                .await;
             // Check if we've reached the maximum number of tasks
             if let Some(max) = self.max_tasks {
                 if self.tasks_completed >= max {
